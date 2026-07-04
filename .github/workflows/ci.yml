@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Typecheck + lint + tests (shared, backend, admin, mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGO_URI: mongodb://localhost:27017/trustpe-test
+      JWT_ACCESS_SECRET: test-access-secret-must-be-at-least-32-chars-long
+      JWT_REFRESH_SECRET: test-refresh-secret-must-be-at-least-32-chars-long
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install (root — covers all workspaces)
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck (all workspaces)
+        run: bun run typecheck
+
+      - name: Lint (backend + admin + mobile)
+        run: bun run lint
+
+      - name: Tests (all workspaces)
+        run: bun run test

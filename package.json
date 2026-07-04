@@ -1,0 +1,36 @@
+{
+  "name": "trustpe",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TrustPe — trust-based P2P lending marketplace for India",
+  "workspaces": ["backend", "mobile", "admin", "shared"],
+  "scripts": {
+    "dev:backend": "bun run --cwd backend dev",
+    "dev:mobile": "bun run --cwd mobile dev",
+    "dev:admin": "bun run --cwd admin dev",
+    "test:backend": "bun run --cwd backend test",
+    "test:mobile": "bun run --cwd mobile test",
+    "test:admin": "bun run --cwd admin test",
+    "test:shared": "bun run --cwd shared test",
+    "test": "bun run test:shared && bun run test:backend && bun run test:admin && bun run test:mobile",
+    "lint:backend": "bun run --cwd backend lint",
+    "lint:mobile": "bun run --cwd mobile lint",
+    "lint:admin": "bun run --cwd admin lint",
+    "lint": "bun run lint:backend && bun run lint:admin && bun run lint:mobile",
+    "typecheck:backend": "bun run --cwd backend typecheck",
+    "typecheck:shared": "bun run --cwd shared typecheck",
+    "typecheck:admin": "bun run --cwd admin typecheck",
+    "typecheck:mobile": "bun run --cwd mobile typecheck",
+    "typecheck": "bun run typecheck:shared && bun run typecheck:backend && bun run typecheck:admin && bun run typecheck:mobile",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "bun": ">=1.1.0"
+  }
+}

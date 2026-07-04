@@ -1,0 +1,49 @@
+{
+  "name": "trustpe-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "bunx expo start",
+    "android": "bunx expo start --android",
+    "build:dev": "bunx eas build --profile development --platform android",
+    "build:preview": "bunx eas build --profile preview --platform android",
+    "build:prod": "bunx eas build --profile production --platform android",
+    "lint": "bunx eslint . --max-warnings=0 --ext .ts,.tsx",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest run",
+    "test:watch": "bunx vitest"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.9.0",
+    "expo": "~54.0.0",
+    "expo-av": "~16.0.8",
+    "expo-camera": "~17.0.0",
+    "expo-constants": "~18.0.0",
+    "expo-file-system": "~19.0.23",
+    "expo-image-manipulator": "~14.0.0",
+    "expo-image-picker": "~17.0.0",
+    "expo-linking": "~8.0.0",
+    "expo-local-authentication": "~17.0.0",
+    "expo-notifications": "~0.32.17",
+    "expo-router": "~6.0.24",
+    "expo-secure-store": "~15.0.0",
+    "expo-status-bar": "~3.0.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-hook-form": "^7.52.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "socket.io-client": "^4.8.0",
+    "trustpe-shared": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2",
+    "vitest": "^1.6.0"
+  }
+}

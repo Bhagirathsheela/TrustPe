@@ -1,0 +1,100 @@
+# TrustPe — Render Blueprint
+#
+# What this file does:
+#   - Provisions the backend Express service and the admin Next.js service
+#     when you point Render's Blueprint tool at this repo.
+#   - Reserves environment variable slots — either literal values, values
+#     Render should generate for you (JWT secrets), or values you'll paste
+#     from other providers (MONGO_URI, RESEND_API_KEY, Cloudinary secrets).
+#
+# How to use:
+#   1. Push this file to the default branch.
+#   2. Render dashboard → New → Blueprint → pick this repo.
+#   3. Render reads the file and shows the two services + every env var.
+#   4. Paste the "sync: false" values (secrets), then Deploy.
+#
+# See docs/DEPLOY_RENDER.md for the step-by-step launch runbook,
+# rollback, and env-var checklist.
+#
+# Free tier caveats:
+#   - Free web services sleep after 15 min inactivity. First request after
+#     sleep takes ~30s. Fine for the closed pilot; upgrade to Starter
+#     ($7/mo) before real users arrive.
+#   - Health-check path pings on every deploy — /health/ready must return
+#     200 within 90s or Render marks the deploy failed and rolls back.
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # Backend API — Express + Socket.io on a single Render web service.
+  # ─────────────────────────────────────────────────────────────
+  - type: web
+    name: trustpe-api
+    runtime: node
+    plan: free
+    region: singapore # closest region to India for lowest RTT
+    branch: main
+    rootDir: . # repo root — we need bun workspaces to install
+    # `bun install` at root pulls all workspace deps (shared, mobile,
+    # admin, backend). `bun run build:backend` transpiles TS → dist.
+    buildCommand: bun install --frozen-lockfile && bun run --cwd backend build
+    startCommand: node backend/dist/server.js
+    healthCheckPath: /health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        # Render sets PORT automatically to a random free port; the app
+        # already reads from process.env.PORT. Leaving this unset is fine,
+        # but we pin it so ops readers see it.
+        value: 10000
+
+      # Database — paste the Atlas SRV URI at deploy time.
+      - key: MONGO_URI
+        sync: false
+
+      # JWT — Render generates strong random values on first deploy.
+      # Rotate manually before public launch or on suspected compromise.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 30d
+
+      # Cloudinary — three secrets you paste from Cloudinary dashboard.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # Email — see docs/PRODUCTION_EMAIL_SETUP.md.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: TrustPe <no-reply@trustpe.in>
+      - key: EMAIL_REPLY_TO
+        value: support@trustpe.in
+
+      # Observability — leave blank on first deploy, fill once Sentry is set up.
+      - key: SENTRY_DSN
+        sync: false
+
+      # Logging
+      - key: LOG_LEVEL
+        value: info
+
+      # CORS — comma-separated list of origins allowed to hit the API.
+      # Add your Vercel deployment URL here once you deploy the admin
+      # (see docs/DEPLOY_VERCEL_ADMIN.md). Vercel gives you a stable
+      # <project-name>.vercel.app URL plus preview URLs per branch.
+      - key: CORS_ORIGINS
+        value: https://trustpe-admin.vercel.app,https://trustpe.in
+
+# NOTE — the admin panel deploys to Vercel, not Render. See
+# docs/DEPLOY_VERCEL_ADMIN.md. Vercel is Next.js's native home, the free
+# tier covers pilot admin usage comfortably, and you get a stable
+# vercel.app subdomain without needing a custom domain.

@@ -1,0 +1,77 @@
+# Cursor IDE Rules for TrustPe
+
+You are working in the TrustPe codebase — a trust-based P2P lending marketplace for India.
+
+**Always read `CLAUDE.md` at the repository root before making any code changes.** It contains the binding conventions and engineering principles.
+
+## Quick reference (full version in CLAUDE.md)
+
+### Authoritative docs (read in order)
+1. `docs/ARCHITECTURE.md`
+2. `docs/TESTING.md`
+3. `docs/BUILD_PLAN.md`
+
+### Repo layout (MVC)
+- `backend/` — Express + TypeScript with MVC layering (config, models, controllers, routes, services, middleware, jobs, socket, utils, types)
+- `mobile/` — React Native Expo Android user app
+- `admin/` — Next.js admin panel
+- `shared/` — Zod schemas + TS types + constants, imported via `@shared/*` path alias
+
+### The four non-negotiable rules
+1. **Service layer discipline**: external API calls (Cashfree, Cloudinary, etc.) live only in `backend/src/services/*.service.ts`. Controllers never call SDKs directly.
+2. **Audit logging**: every money-touching or identity-touching write produces an `audit_logs` entry.
+3. **Idempotency**: every money-touching endpoint requires `Idempotency-Key` header.
+4. **Zod everywhere**: every API boundary validates with schemas from `@shared/schemas`.
+
+### Controller / service / model split
+- Controllers: thin — parse Zod → call ONE service → format response
+- Services: business logic + external API calls + multi-collection writes
+- Models: Mongoose schema + indexes + Mongoose middleware
+
+### TypeScript
+- Strict mode. No `any` without `// @reason:` comment.
+- String literal unions, never `enum`.
+- Money as integer paise (variable ends in `Paise`).
+- Dates as `Date` in code, ISO 8601 on wire.
+
+### File naming (backend)
+- `<resource>.controller.ts`, `<resource>.routes.ts`, `<feature>.service.ts`
+- `<provider>.service.ts` for external SDK wrappers (e.g., `cloudinary.service.ts`)
+- Models in `PascalCase.ts`
+
+### File size
+- Source files <300 lines
+- Tests <500 lines
+- Controllers <100 lines per file
+- RN screens <250 lines
+
+### Testing
+- Every service function: unit test
+- Every controller: integration test (happy + one failure)
+- Every money path: idempotency test
+- Named fixtures, no magic numbers
+
+### Never do (without explicit user approval)
+- Pool lender funds across borrowers (RBI rule)
+- Promise returns to lenders (RBI rule)
+- Add insurance cross-sell (RBI rule)
+- Add Redux / Zustand
+- Add GraphQL
+- Add iOS to Phase 1
+- Add SMS / WhatsApp to Phase 1
+- Call external services directly from controllers
+- Skip audit logging
+
+### When unsure
+1. Check `ARCHITECTURE.md` (section numbers are stable references)
+2. Match an existing similar pattern in the codebase
+3. Ask the user — don't invent business logic
+4. Prefer the boring, well-known option
+
+### Project context
+- Phase 1 = closed friends-and-family pilot, 30–50 Android users
+- Stack: React Native (Expo) + Next.js admin + Express + MongoDB
+- Package manager: Bun
+- Free tiers only in Phase 1; paid services Phase 2
+- UPI Intent Result is primary payment verification (native Android)
+- OCR + screenshot is fallback

@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "TrustPe",
+    "slug": "trustpe",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "trustpe",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "in.trustpe.app",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "USE_FINGERPRINT"],
+      "blockedPermissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_CONTACTS",
+        "READ_SMS",
+        "RECEIVE_SMS",
+        "READ_CALL_LOG"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "trustpe" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-local-authentication",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TrustPe needs access to your photos to upload KYC documents and UPI screenshots."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TrustPe needs camera access to capture Aadhaar, PAN, and selfie video for KYC.",
+          "microphonePermission": "TrustPe needs microphone access to record the selfie video for KYC.",
+          "recordAudioAndroid": true
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "//": "Filled by `eas init` and per-environment .env / EAS secrets at build time.",
+      "eas": { "projectId": "" },
+      "sentryDsn": "",
+      "apiBaseUrl": ""
+    }
+  }
+}

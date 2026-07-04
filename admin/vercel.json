@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd .. && bun install --frozen-lockfile && bun run --cwd admin build",
+  "installCommand": "echo 'install handled by buildCommand'",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "regions": ["bom1"]
+}

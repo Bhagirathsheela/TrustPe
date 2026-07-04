@@ -1,0 +1,222 @@
+{
+  "info": {
+    "_postman_id": "trustpe-phase-1-sprint-1",
+    "name": "TrustPe API",
+    "description": "Phase 1 Sprint 1 — auth foundation. Health + auth (signup, login, verify-otp, refresh, logout) + /me.\n\n## Setup\n\n1. Boot the backend: `cd backend && npm run dev`.\n2. Update the `baseUrl` collection variable if your backend runs on a non-default port.\n3. Run requests in order from top to bottom — `verify-otp` auto-captures the access + refresh tokens into collection variables.\n4. Email OTP is logged to your backend terminal in stub mode (no RESEND_API_KEY). Copy the 6-digit code from the log into the `otp` field of the verify-otp request before sending.\n\n## Auth flow\n\n- **Signup** → 202 with `otpSentTo`. Check backend terminal for the OTP.\n- **Verify-otp** → 200 with tokens; auto-saves to vars.\n- **Get /me** → 200 with your user (uses `{{accessToken}}` automatically).\n- **Refresh** → 200, new tokens; auto-saves; old refresh token is now dead.\n- **Logout** → 204; refresh token revoked.\n\nReplaying an already-rotated refresh token returns 401 `refresh_chain_killed` (theft detection).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        },
+        "description": "Liveness probe. Returns `{ ok: true, service, version, sprint, timestamp }`."
+      },
+      "response": []
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('Returns otpSentTo', () => pm.expect(data.otpSentTo).to.be.a('string'));",
+                  "console.log('Check your backend terminal for the OTP. Then send the verify-otp request with that 6-digit code.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"9876543210\",\n  \"email\": \"[email protected]\",\n  \"name\": \"Bhagirath Test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "signup"]
+            },
+            "description": "Create a new user OR re-issue an OTP for an existing user with the same email.\n\nBody:\n- `phone` — 10-digit Indian mobile (server normalizes to +91XXXXXXXXXX)\n- `email` — primary identifier; OTP is sent here\n- `name` — display name (letters, spaces, .' - allowed)\n\nResponse: 202 with `{ data: { otpSentTo } }`. OTP appears in the backend terminal in stub mode."
+          }
+        },
+        {
+          "name": "Login (returning user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+                  "console.log('Check your backend terminal for the OTP, then send verify-otp.');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"[email protected]\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            },
+            "description": "Issue a fresh OTP for an existing user. If the email doesn't match any user the response is still 202 (no info disclosure)."
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "  pm.collectionVariables.set('userId', data.user.id);",
+                  "  console.log('Saved accessToken, refreshToken, userId to collection variables.');",
+                  "  console.log('User status: ' + data.user.status);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"[email protected]\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "verify-otp"]
+            },
+            "description": "Verify the 6-digit OTP. On success, returns access + refresh tokens + the user object. The first successful verify moves the user from `unverified` → `onboarding`.\n\nIMPORTANT: replace `123456` with the actual OTP from your backend terminal. The test script auto-saves the returned tokens into `{{accessToken}}` and `{{refreshToken}}`.\n\nError codes: `otp_not_found`, `otp_incorrect`, `otp_expired`, `otp_too_many_attempts`."
+          }
+        },
+        {
+          "name": "Get /me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "me"]
+            },
+            "description": "Read the authenticated user's own data. Uses `{{accessToken}}` automatically.\n\nResponse includes `id`, `phone`, `email`, `name`, `handle`, `status`, `kycStatus`, `roles`, `trustScore`, `trustBand`."
+          }
+        },
+        {
+          "name": "Refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "  console.log('Tokens rotated. Old refreshToken is now revoked.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "refresh"]
+            },
+            "description": "Exchange the refresh token for a new pair. Rotation chain + theft detection: the old refresh token is revoked atomically with the new one being issued. Replaying the OLD token after this request returns 401 `refresh_chain_killed` and revokes ALL tokens in the family (force-logout)."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "logout"]
+            },
+            "description": "Revokes the current refresh token without killing the family. Returns 204. The access token continues to work until it expires (15 min) — for hard logout, clear it client-side too."
+          }
+        }
+      ],
+      "description": "Auth endpoints. Run signup → verify-otp (with the OTP from the backend terminal) → me / refresh / logout."
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
