@@ -47,6 +47,17 @@ let cachedTransporter: Transporter | null = null;
 function getTransporter(): Transporter | null {
   if (!isConfigured()) return null;
   if (cachedTransporter) return cachedTransporter;
+
+  // Dev escape hatch — if the local network intercepts TLS (antivirus,
+  // corporate proxy), Node rejects the swapped cert with
+  // "self-signed certificate in certificate chain". Setting
+  // SMTP_TLS_INSECURE=true skips verification. Refuses to take effect
+  // when NODE_ENV=production so it can't leak.
+  const insecure = env.SMTP_TLS_INSECURE && env.NODE_ENV !== 'production';
+  if (env.SMTP_TLS_INSECURE && env.NODE_ENV === 'production') {
+    logger.warn('[email] SMTP_TLS_INSECURE ignored in production');
+  }
+
   cachedTransporter = nodemailer.createTransport({
     host: env.SMTP_HOST!,
     port: env.SMTP_PORT,
@@ -55,6 +66,7 @@ function getTransporter(): Transporter | null {
       user: env.SMTP_USER!,
       pass: env.SMTP_PASS!,
     },
+    ...(insecure ? { tls: { rejectUnauthorized: false } } : {}),
   });
   return cachedTransporter;
 }

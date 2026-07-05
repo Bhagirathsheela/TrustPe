@@ -5,7 +5,7 @@ import {
   MIN_LOAN_TENURE_MONTHS,
   MAX_LOAN_TENURE_MONTHS,
   MAX_LOAN_ROI_PERCENT,
-} from '../constants/index';
+} from '../constants/index.js';
 
 /**
  * Loan purpose categories. Curated list — borrowers pick one; lenders can

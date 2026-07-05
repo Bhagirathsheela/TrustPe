@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { vpaSchema } from './upi';
+import { vpaSchema } from './upi.js';
 
 /** Indian PAN — 5 letters, 4 digits, 1 letter. */
 export const panSchema = z

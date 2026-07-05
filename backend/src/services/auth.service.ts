@@ -18,6 +18,7 @@ import {
 import { signAccessToken } from '../utils/jwt.js';
 import { otpStoreService } from './otp-store.service.js';
 import { emailService } from './email.service.js';
+import { logger } from '../utils/logger.js';
 import type { SignupInput, VerifyOtpInput, LoginInput } from 'trustpe-shared';
 
 type IssueTokensOptions = {

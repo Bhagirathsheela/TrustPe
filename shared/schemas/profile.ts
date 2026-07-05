@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MIN_LOAN_AMOUNT_PAISE, MAX_LOAN_AMOUNT_PAISE } from '../constants/index';
+import { MIN_LOAN_AMOUNT_PAISE, MAX_LOAN_AMOUNT_PAISE } from '../constants/index.js';
 
 /** Declared monthly income bands (no salary slip required at Phase 1). */
 export const incomeBandSchema = z.enum([

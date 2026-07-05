@@ -6,7 +6,7 @@
  *
  * See ARCHITECTURE.md §6 (state machines) and §11.1 (collections).
  */
-import { Schema, model, type InferSchemaType, type Model } from 'mongoose';
+import { Schema, model, type HydratedDocument, type InferSchemaType, type Model } from 'mongoose';
 
 const loanSchema = new Schema(
   {
@@ -69,7 +69,7 @@ const loanSchema = new Schema(
 loanSchema.index({ borrowerId: 1, status: 1, agreedAt: -1 });
 loanSchema.index({ lenderId: 1, status: 1, agreedAt: -1 });
 
-export type LoanDocument = InferSchemaType<typeof loanSchema> & {
-  _id: Schema.Types.ObjectId;
-};
-export const Loan: Model<LoanDocument> = model<LoanDocument>('Loan', loanSchema);
+// HydratedDocument gives us the schema-typed fields plus Mongoose's
+// runtime methods (save, deleteOne, populate, etc.) on returned documents.
+export type LoanDocument = HydratedDocument<InferSchemaType<typeof loanSchema>>;
+export const Loan: Model<InferSchemaType<typeof loanSchema>> = model('Loan', loanSchema);

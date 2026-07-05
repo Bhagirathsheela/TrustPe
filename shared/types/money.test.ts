@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Paise } from './index';
+import type { Paise } from './index.js';
 
 /**
  * Smoke test for the test infrastructure itself.

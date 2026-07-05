@@ -47,9 +47,9 @@ export function clampTrustScore(score: number): number {
 }
 
 // Re-export curated lists used by the mobile UI
-export * from './cities';
-export * from './occupation-roles';
-export * from './state-roi-caps';
+export * from './cities.js';
+export * from './occupation-roles.js';
+export * from './state-roi-caps.js';
 
 // Eligibility tier caps in paise
 export const TIER_CAPS_PAISE = {

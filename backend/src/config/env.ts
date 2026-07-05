@@ -29,6 +29,11 @@ const envSchema = z.object({
   SMTP_SECURE: z.coerce.boolean().optional().default(true),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  // Dev-only escape hatch — set true if your local network intercepts
+  // TLS (antivirus / corporate proxy) and Node rejects the cert chain
+  // with "self-signed certificate in certificate chain". NEVER set in
+  // production — disables cert verification entirely.
+  SMTP_TLS_INSECURE: z.coerce.boolean().optional().default(false),
   // Sender + reply. For Gmail SMTP, keep EMAIL_FROM matching SMTP_USER
   // so recipients don't see the "via" line.
   EMAIL_FROM: z.string().default('TrustPe <no-reply@trustpe.in>'),

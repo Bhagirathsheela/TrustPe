@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_LOAN_TENURE_MONTHS } from '../constants/index';
+import { MAX_LOAN_TENURE_MONTHS } from '../constants/index.js';
 
 /**
  * Payment intent kinds.
