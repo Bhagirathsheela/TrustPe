@@ -36,6 +36,9 @@ services:
     rootDir: . # repo root — we need bun workspaces to install
     # `bun install` at root pulls all workspace deps (shared, mobile,
     # admin, backend). `bun run build:backend` transpiles TS → dist.
+    # `bun install` runs the root postinstall which builds `shared/` first,
+    # so `trustpe-shared` resolves to compiled JS at runtime + tsc has
+    # types available when it compiles backend.
     buildCommand: bun install --frozen-lockfile && bun run --cwd backend build
     startCommand: node backend/dist/server.js
     healthCheckPath: /health/ready

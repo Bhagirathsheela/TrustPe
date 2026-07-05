@@ -10,6 +10,10 @@
 //    file tree. Without this, the same package (e.g. react) can be found
 //    twice through different paths, producing the dreaded
 //    "Invalid hook call ... more than one copy of React" runtime error.
+// 4. unstable_conditionNames adds `react-native` so Metro picks the
+//    react-native branch of package.json `exports` — used by shared/ to
+//    point mobile at raw `.ts` source (while backend picks compiled
+//    `.js` from dist/).
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
@@ -26,5 +30,8 @@ config.resolver.nodeModulesPaths = [
 ];
 
 config.resolver.disableHierarchicalLookup = true;
+
+config.resolver.unstable_enablePackageExports = true;
+config.resolver.unstable_conditionNames = ['react-native', 'require', 'default'];
 
 module.exports = config;

@@ -5,6 +5,8 @@
   "description": "TrustPe — trust-based P2P lending marketplace for India",
   "workspaces": ["backend", "mobile", "admin", "shared"],
   "scripts": {
+    "postinstall": "bun run --cwd shared build",
+    "build:shared": "bun run --cwd shared build",
     "dev:backend": "bun run --cwd backend dev",
     "dev:mobile": "bun run --cwd mobile dev",
     "dev:admin": "bun run --cwd admin dev",
