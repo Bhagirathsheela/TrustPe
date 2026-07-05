@@ -255,7 +255,7 @@ function sanitiseDoc(doc: Record<string, unknown>): Record<string, unknown> {
   // in any viewer.
   const { __v, ...rest } = doc;
   void __v;
-  return convertIds(rest);
+  return convertIds(rest) as Record<string, unknown>;
 }
 
 function sanitiseKyc(doc: Record<string, unknown>): Record<string, unknown> {

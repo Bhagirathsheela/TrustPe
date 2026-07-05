@@ -67,7 +67,10 @@ export type AdminDisputeDetail = AdminDisputeListItem & {
   };
 };
 
-type IntentWithUsers = PaymentIntentDocument & {
+// Omit the original narrow `ObjectId` fields before widening to the
+// populated union, otherwise the intersection collapses to `ObjectId &
+// (ObjectId | UserDocument)` and assignment fails.
+type IntentWithUsers = Omit<PaymentIntentDocument, 'payerId' | 'payeeId'> & {
   payerId: UserDocument | Types.ObjectId;
   payeeId: UserDocument | Types.ObjectId;
 };

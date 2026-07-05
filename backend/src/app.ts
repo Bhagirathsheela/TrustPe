@@ -15,7 +15,7 @@ import express, { type Express } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
-import pinoHttp from 'pino-http';
+import { pinoHttp } from 'pino-http';
 import { logger } from './utils/logger.js';
 import { env } from './config/env.js';
 import { router } from './routes/index.js';

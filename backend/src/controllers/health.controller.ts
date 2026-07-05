@@ -42,7 +42,6 @@ export const healthController = {
         // readiness when NODE_ENV is production.
         ok: env.NODE_ENV !== 'production' || email.live,
         live: email.live,
-        provider: email.provider,
         from: email.from,
       },
       jwt: { ok: jwtConfigured },

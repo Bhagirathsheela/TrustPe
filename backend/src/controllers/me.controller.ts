@@ -76,7 +76,7 @@ export const meController = {
         ip: req.ip,
         userAgent: req.get('user-agent') ?? undefined,
       });
-      if (!result.ok) {
+      if (result.ok === false) {
         // Deletion blocked — return 409 so the client can show the
         // blocking-loans message with the right severity.
         res.status(409).json({
