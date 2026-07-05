@@ -4,8 +4,7 @@
  * Global error boundary for the admin Next.js app.
  *
  * Next.js calls this whenever an error escapes a layout or page. It must
- * include its own <html> and <body> tags. We log to the tracker and show a
- * friendly fallback with a reset button.
+ * include its own <html> and <body> tags.
  */
 import { useEffect } from 'react';
 import { tracker } from '../lib/tracker';

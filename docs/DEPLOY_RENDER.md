@@ -246,8 +246,6 @@ re-run.
 ## Quick reference
 
 - IaC config: [`../render.yaml`](../render.yaml)
-- Docker path (optional): [`../backend/Dockerfile`](../backend/Dockerfile)
-  — not used by Render Blueprint, kept for local reproducibility
 - Env-var checklist (values you paste at Blueprint apply):
   `MONGO_URI`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
   `CLOUDINARY_API_SECRET`, `RESEND_API_KEY`, `SENTRY_DSN` (optional)

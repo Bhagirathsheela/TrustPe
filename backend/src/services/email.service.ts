@@ -1,20 +1,25 @@
 /**
- * Email delivery service — provider-agnostic transport.
+ * Email delivery service — SMTP via Nodemailer.
  *
- * Chooses the first provider whose env vars are configured:
- *   1. SMTP (nodemailer) — set SMTP_HOST + SMTP_USER + SMTP_PASS
- *   2. Resend             — set RESEND_API_KEY (needs domain verification)
- *   3. Stub               — nothing set; prints OTP to backend logs
+ * Why SMTP: Phase 1 is zero-cost, zero-domain. Gmail SMTP with an app
+ * password lets us send real transactional email from a personal Gmail
+ * account — no DNS records, no monthly bill, ~500 sends/day cap which
+ * is orders of magnitude above pilot need.
  *
- * See docs/EMAIL_PROVIDER_OPTIONS.md for the trade-offs and setup steps
- * for each provider.
+ * Modes:
+ *   - Stub (default in dev/test): `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`
+ *     not all set → logs OTP to the terminal.
+ *   - Live: all three set → sends via nodemailer, retries once on
+ *     transient failures.
  *
- * Templates live in `email-templates.ts`. Each template returns
- * `{ subject, html, text }`; this service is just the transport.
+ * Templates live in `email-templates.ts`. When we need Resend (verified
+ * domain, higher deliverability, dedicated IP) that's a documented
+ * swap — see docs/PRODUCTION_EMAIL_SETUP.md.
  *
- * See ARCHITECTURE.md §6.2 adapter discipline — controllers never import
- * Nodemailer or Resend directly; they go through this service.
+ * See ARCHITECTURE.md §6.2 adapter discipline — controllers never
+ * import Nodemailer directly; they go through this service.
  */
+import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { tracker } from '../utils/tracker.js';
@@ -32,56 +37,26 @@ type EmailInput = {
   text?: string;
 };
 
-type SendResult = { id: string; mode: 'sent' | 'stubbed'; provider: Provider };
-type Provider = 'smtp' | 'resend' | 'stub';
+type SendResult = { id: string; mode: 'sent' | 'stubbed' };
 
-function chooseProvider(): Provider {
-  if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) return 'smtp';
-  if (env.RESEND_API_KEY) return 'resend';
-  return 'stub';
+function isConfigured(): boolean {
+  return !!(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
 }
 
-// Cached transports so we don't re-instantiate on every send.
-let smtpTransporter: import('nodemailer').Transporter | null = null;
-async function getSmtpTransporter(): Promise<import('nodemailer').Transporter | null> {
-  if (smtpTransporter) return smtpTransporter;
-  if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) return null;
-  try {
-    const nodemailer = await import('nodemailer');
-    smtpTransporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: env.SMTP_SECURE,
-      auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASS,
-      },
-    });
-    return smtpTransporter;
-  } catch (err) {
-    logger.warn(
-      { err: err instanceof Error ? err.message : String(err) },
-      '[email] SMTP configured but nodemailer not installed — falling back',
-    );
-    return null;
-  }
-}
-
-let resendClient: import('resend').Resend | null = null;
-async function getResendClient(): Promise<import('resend').Resend | null> {
-  if (resendClient) return resendClient;
-  if (!env.RESEND_API_KEY) return null;
-  try {
-    const { Resend } = await import('resend');
-    resendClient = new Resend(env.RESEND_API_KEY);
-    return resendClient;
-  } catch (err) {
-    logger.warn(
-      { err: err instanceof Error ? err.message : String(err) },
-      '[email] RESEND_API_KEY set but resend not installed — falling back',
-    );
-    return null;
-  }
+let cachedTransporter: Transporter | null = null;
+function getTransporter(): Transporter | null {
+  if (!isConfigured()) return null;
+  if (cachedTransporter) return cachedTransporter;
+  cachedTransporter = nodemailer.createTransport({
+    host: env.SMTP_HOST!,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE,
+    auth: {
+      user: env.SMTP_USER!,
+      pass: env.SMTP_PASS!,
+    },
+  });
+  return cachedTransporter;
 }
 
 function isTransient(err: unknown): boolean {
@@ -95,105 +70,63 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function sendViaSmtp(input: EmailInput): Promise<SendResult> {
-  const transporter = await getSmtpTransporter();
-  if (!transporter) throw new Error('SMTP transporter unavailable');
-
-  const payload = {
-    from: env.EMAIL_FROM,
-    replyTo: env.EMAIL_REPLY_TO,
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-    text: input.text,
-  };
-
-  const info = await transporter.sendMail(payload);
-  logger.info(
-    { to: input.to, subject: input.subject, id: info.messageId },
-    '[email:smtp] sent',
-  );
-  return { id: info.messageId, mode: 'sent', provider: 'smtp' };
-}
-
-async function sendViaResend(input: EmailInput): Promise<SendResult> {
-  const client = await getResendClient();
-  if (!client) throw new Error('Resend client unavailable');
-
-  const payload = {
-    from: env.EMAIL_FROM,
-    replyTo: env.EMAIL_REPLY_TO,
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-    text: input.text,
-  };
-
-  const result = await client.emails.send(payload);
-  if (result.error) throw new Error(String(result.error.message ?? 'resend error'));
-  logger.info(
-    { to: input.to, subject: input.subject, id: result.data?.id },
-    '[email:resend] sent',
-  );
-  return { id: result.data?.id ?? 'unknown', mode: 'sent', provider: 'resend' };
-}
-
-async function withRetry<T>(fn: () => Promise<T>, context: EmailInput): Promise<T> {
-  try {
-    return await fn();
-  } catch (firstErr) {
-    if (!isTransient(firstErr)) {
-      logger.warn(
-        { err: firstErr, to: context.to, subject: context.subject },
-        '[email] failed',
-      );
-      throw firstErr;
-    }
-    logger.warn(
-      { err: firstErr, to: context.to },
-      '[email] transient failure — retrying once',
-    );
-    await sleep(750);
-    try {
-      return await fn();
-    } catch (retryErr) {
-      logger.error(
-        { err: retryErr, to: context.to, subject: context.subject },
-        '[email] failed after retry',
-      );
-      tracker.captureException(retryErr, {
-        route: 'email.send',
-        extra: { to: context.to, subject: context.subject },
-      });
-      throw retryErr;
-    }
-  }
-}
-
 export const emailService = {
   async send(input: EmailInput): Promise<SendResult> {
-    const provider = chooseProvider();
-
-    if (provider === 'stub') {
+    const transporter = getTransporter();
+    if (!transporter) {
       logger.info(
         { to: input.to, subject: input.subject },
-        '[email:stub] Would send (configure SMTP_* or RESEND_API_KEY to enable)',
+        '[email:stub] Would send (configure SMTP_* to enable)',
       );
       logger.debug({ html: input.html }, '[email:stub] body');
-      return { id: `stub-${Date.now()}`, mode: 'stubbed', provider: 'stub' };
+      return { id: `stub-${Date.now()}`, mode: 'stubbed' };
     }
 
-    if (provider === 'smtp') {
-      return await withRetry(() => sendViaSmtp(input), input);
-    }
+    const payload = {
+      from: env.EMAIL_FROM,
+      replyTo: env.EMAIL_REPLY_TO,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    };
 
-    return await withRetry(() => sendViaResend(input), input);
+    try {
+      const info = await transporter.sendMail(payload);
+      logger.info(
+        { to: input.to, subject: input.subject, id: info.messageId },
+        '[email] sent',
+      );
+      return { id: info.messageId, mode: 'sent' };
+    } catch (firstErr) {
+      if (!isTransient(firstErr)) {
+        logger.warn({ err: firstErr, to: input.to }, '[email] failed');
+        throw firstErr;
+      }
+      logger.warn({ err: firstErr, to: input.to }, '[email] transient — retrying once');
+      await sleep(750);
+      try {
+        const info = await transporter.sendMail(payload);
+        logger.info(
+          { to: input.to, subject: input.subject, id: info.messageId, retried: true },
+          '[email] sent on retry',
+        );
+        return { id: info.messageId, mode: 'sent' };
+      } catch (retryErr) {
+        logger.error({ err: retryErr, to: input.to }, '[email] failed after retry');
+        tracker.captureException(retryErr, {
+          route: 'email.send',
+          extra: { to: input.to, subject: input.subject },
+        });
+        throw retryErr;
+      }
+    }
   },
 
   /** Pre-templated OTP email — used by auth flows. */
   async sendOtp(to: string, otp: string, purpose: 'signup' | 'login'): Promise<void> {
     // In stub mode, print the OTP prominently so the developer sees it.
-    if (chooseProvider() === 'stub') {
+    if (!isConfigured()) {
       logger.info(
         { to, otp, purpose },
         `\n=====================================\n  OTP for ${to}: ${otp}\n  (purpose: ${purpose}, expires in 5 min)\n=====================================`,
@@ -227,15 +160,10 @@ export const emailService = {
     }
   },
 
-  /**
-   * Health probe — reports which provider is live. Used by `/health/ready`
-   * so ops can see at a glance whether OTPs are going to real users.
-   */
-  status(): { live: boolean; provider: Provider; from: string; replyTo: string } {
-    const provider = chooseProvider();
+  /** Health probe — used by /health/ready. */
+  status(): { live: boolean; from: string; replyTo: string } {
     return {
-      live: provider !== 'stub',
-      provider,
+      live: isConfigured(),
       from: env.EMAIL_FROM,
       replyTo: env.EMAIL_REPLY_TO,
     };

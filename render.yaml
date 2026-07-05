@@ -71,13 +71,22 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
 
-      # Email — see docs/PRODUCTION_EMAIL_SETUP.md.
-      - key: RESEND_API_KEY
+      # Email — Nodemailer SMTP (Gmail app password path). Zero cost,
+      # no domain required. See docs/PRODUCTION_EMAIL_SETUP.md.
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_SECURE
+        value: true
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
         sync: false
       - key: EMAIL_FROM
-        value: TrustPe <no-reply@trustpe.in>
+        sync: false
       - key: EMAIL_REPLY_TO
-        value: support@trustpe.in
+        sync: false
 
       # Observability — leave blank on first deploy, fill once Sentry is set up.
       - key: SENTRY_DSN

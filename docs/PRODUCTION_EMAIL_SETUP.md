@@ -1,215 +1,167 @@
 # TrustPe — Production Email Setup
 
 **Status:** ready-to-execute runbook for turning on real transactional
-email (OTP signup / login + KYC decisions).
-**Audience:** Bhagirath (you).
-**Companion docs:**
-- [`PLAY_STORE_LAUNCH_CHECKLIST.md`](./PLAY_STORE_LAUNCH_CHECKLIST.md) — the
-  broader launch plan; you'll come back here from Phase A.
-- [`PRIVACY_POLICY.md`](./PRIVACY_POLICY.md) — lists Resend as a
-  sub-processor.
+email (OTP signup / login + KYC decisions) using **Gmail SMTP with an
+app password**. Zero cost, no domain required.
+**Audience:** you.
 
 At the end of this runbook, when a user hits **Sign up** or **Log in**
-on the app, a branded TrustPe email lands in their inbox within seconds.
-Until you do this, OTPs only appear in the backend logs.
+on the app, a branded TrustPe email lands in their Gmail inbox within
+seconds. Until you do this, OTPs only appear in the backend logs.
 
 ---
 
-## Concepts in 30 seconds
+## Why Gmail SMTP
 
-- **Transactional email provider:** Resend (chosen for zero setup, free
-  tier of 3,000 sends/month, and a proper Node SDK). Sub-processor
-  disclosed in the Privacy Policy.
-- **From address:** must be at a domain you own AND have proved to
-  Resend that you own via DNS records. The env var is `EMAIL_FROM`,
-  default `TrustPe <no-reply@trustpe.in>`. If your DNS proof isn't set
-  up, Resend rejects every send with a 4xx and no retry helps.
-- **Reply-To:** where "reply" from a user goes. `EMAIL_REPLY_TO`,
-  default `support@trustpe.in`. This doesn't need DNS proof — just a
-  mailbox you actually read.
+- **₹0 cost.** Uses your existing personal Gmail.
+- **No DNS setup.** Send from `yourname@gmail.com` — no SPF/DKIM/DMARC.
+- **~500 emails/day.** Way above pilot need (you'd hit MongoDB Atlas
+  connection limits long before you hit this).
+- **Excellent deliverability.** Gmail-to-Gmail rarely lands in spam.
+- **Recognisable sender.** Your friends already know your Gmail address —
+  a welcome trust signal for the closed pilot.
 
----
-
-## Phase A — Sign up for Resend
-
-1. Go to [resend.com](https://resend.com) → **Sign up** with your work
-   email. Free tier gives 3,000 sends/month and 100 sends/day — enough
-   for the entire closed pilot.
-2. Confirm the sign-up link.
-3. In the dashboard, go to **API Keys → Create API Key**.
-   - Name: `trustpe-production`
-   - Permission: **Full access** (Sending permission alone works too;
-     full access is easier for pilot debugging).
-   - Copy the key — starts with `re_...`. You won't see it again.
-
-Store the key somewhere you'll find it in ~10 minutes when you set
-Render env vars.
+Trade-off: recipients see your Gmail as the sender. For friends-and-family
+this is a feature. For a public Play Store listing later, upgrade to a
+proper SMTP host or Resend with a verified `trustpe.in` domain — the
+env-var swap is documented at the bottom of this doc.
 
 ---
 
-## Phase B — Prove you own `trustpe.in` (DNS setup, ~15 min + wait)
+## Phase A — Prepare your Google account (~5 min)
 
-Resend requires SPF + DKIM records so mailbox providers (Gmail, Outlook,
-Zoho, Rediff) don't drop your mail as spoofing.
-
-1. In Resend, go to **Domains → Add Domain** → enter `trustpe.in`.
-2. Resend shows a list of DNS records to add. For a typical setup you'll
-   get roughly:
-   ```
-   MX      send                  10 feedback-smtp.us-east-1.amazonses.com
-   TXT     send                  "v=spf1 include:amazonses.com ~all"
-   TXT     resend._domainkey     p=MIGfMA0GCSqGSIb3DQEB... (long base64 blob)
-   TXT     _dmarc                v=DMARC1; p=none; rua=mailto:dmarc@trustpe.in
-   ```
-   These change occasionally — copy from Resend's UI, not from here.
-3. Log into wherever you host DNS for `trustpe.in` (Cloudflare, Route53,
-   your registrar's control panel) and add each record. `_domainkey` and
-   `_dmarc` are the ones people miss.
-4. Back in Resend, click **Verify DNS records**. If they show green, go
-   to step 5. If yellow, wait — DNS propagates in anywhere from 10 min
-   to 24 hours. If red after 1 hour, double-check no typos on the DKIM
-   value (the long TXT record is the usual culprit).
-5. Once verified, the sender `no-reply@trustpe.in` (or anything else
-   `@trustpe.in`) is authorised to send.
-
-> **Rushed alternative:** while `trustpe.in` is being verified, you can
-> temporarily send from `onboarding@resend.dev`. Set
-> `EMAIL_FROM="TrustPe <onboarding@resend.dev>"`. Not for launch — Gmail
-> may still flag it — but useful to smoke-test the code path.
+1. **Enable 2-Factor Authentication** on your Google account (required
+   by Google before it will let you create an app password):
+   https://myaccount.google.com/security → 2-Step Verification.
+2. **Create an app password:**
+   https://myaccount.google.com/apppasswords → **App name:**
+   `TrustPe backend` → **Create**. Google shows a 16-character code
+   like `abcd efgh ijkl mnop`.
+3. **Copy it now — you can't see it again.** Spaces in the code are
+   optional (Nodemailer handles either way).
 
 ---
 
-## Phase C — Set Render env vars (~5 min)
+## Phase B — Local test (~2 min)
 
-In Render → your `trustpe-api` service → **Environment**:
+Fill the SMTP block in `backend/.env`:
 
-Add these two:
 ```
-RESEND_API_KEY=re_...              # from Phase A
-EMAIL_FROM=TrustPe <no-reply@trustpe.in>
-EMAIL_REPLY_TO=support@trustpe.in
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=yourname@gmail.com
+SMTP_PASS=abcdefghijklmnop
+EMAIL_FROM=TrustPe <yourname@gmail.com>
+EMAIL_REPLY_TO=yourname@gmail.com
 ```
 
-Save. Render auto-restarts the service.
+`EMAIL_FROM` should match `SMTP_USER` so Gmail doesn't add a "via
+mailer.gmail.com" warning to recipients. You can use a display name like
+`TrustPe <yourname@gmail.com>` — Gmail allows this.
 
-If your production backend is running elsewhere (e.g., a VPS or Fly), set
-the same variables in that environment's secret store.
-
----
-
-## Phase D — Verify with the readiness probe (~1 min)
+Restart the backend:
 
 ```bash
-curl https://api.trustpe.in/health/ready | jq
+bun --cwd backend dev
+```
+
+Sign yourself up on the mobile app (or the admin panel — anything that
+triggers an OTP). The OTP should hit your Gmail inbox within seconds
+with subject "Confirm your TrustPe signup".
+
+If nothing arrives, check the backend logs for `[email:stub]` (means
+env vars weren't picked up — restart), `[email] failed: Invalid login`
+(means wrong app password), or `[email] failed: EAUTH` (means 2FA isn't
+enabled).
+
+---
+
+## Phase C — Set the same vars on Render (~2 min)
+
+Render dashboard → `trustpe-api` → **Environment**:
+
+| Key | Value |
+|---|---|
+| `SMTP_HOST` | `smtp.gmail.com` (already set by render.yaml) |
+| `SMTP_PORT` | `465` (already set) |
+| `SMTP_SECURE` | `true` (already set) |
+| `SMTP_USER` | your Gmail |
+| `SMTP_PASS` | the 16-character app password |
+| `EMAIL_FROM` | `TrustPe <yourgmail@gmail.com>` |
+| `EMAIL_REPLY_TO` | `yourgmail@gmail.com` |
+
+Save → Render restarts the service.
+
+---
+
+## Phase D — Verify (~1 min)
+
+```bash
+curl https://trustpe-api.onrender.com/health/ready | jq
 ```
 
 Expected response includes:
 ```json
 {
-  "ok": true,
-  "env": "production",
   "dependencies": {
-    "database": { "ok": true, "state": "connected" },
-    "email":    { "ok": true, "live": true, "from": "TrustPe <no-reply@trustpe.in>" },
-    "jwt":      { "ok": true },
-    "cloudinary": { "ok": true }
+    "email": { "ok": true, "live": true, "from": "TrustPe <yourgmail@gmail.com>" }
   }
 }
 ```
 
-If `email.live` is `false` in production, RESEND_API_KEY is missing.
-If `email.ok` is `false` in production, the readiness probe fails and
-Render marks the service unhealthy — check the env vars.
+Then sign up on the production mobile build with a different Gmail
+address (not your own — the point is to prove it works for other people).
+The OTP should arrive within 10 seconds.
 
 ---
 
-## Phase E — Send yourself an OTP (~1 min)
+## Phase E — Reputation warmup
 
-The single best real-world test:
+For the first ~50 sends after Gmail sees your app-password sending
+pattern, some recipients' Gmails may still class the email as
+Promotions rather than Primary. Ask early testers to:
+- Move the first TrustPe email from **Promotions** or **Updates** to
+  **Primary**. Google learns from this.
+- Add `yourgmail@gmail.com` to their contacts.
 
-1. On the mobile app pointing at production, tap **Sign up**.
-2. Enter your own name, phone, and a Gmail address you can check.
-3. Hit **Send code**.
-4. Check that Gmail inbox. You should see:
-   - **From:** `TrustPe <no-reply@trustpe.in>`
-   - **Subject:** `Confirm your TrustPe signup`
-   - The branded TrustPe email with a 6-digit code.
-
-Also `curl https://api.trustpe.in/health/ready` — nothing changed, but
-double-check `email.live: true`.
-
-If the email doesn't arrive within 30 seconds:
-- Backend logs (`render logs --service=trustpe-api -f`) — look for
-  `[email] sent` (good) vs `[email] failed` (bad, with a reason).
-- Resend dashboard → **Logs** — every attempted send is here with the
-  response. Common failures:
-  - "Invalid from address": DNS not verified yet.
-  - "Rate limit exceeded": free tier daily cap hit (100/day).
-  - "Invalid recipient": bad email — validate at signup.
+That's it. There's no DNS to wait on.
 
 ---
 
-## Phase F — Recipient reputation warmup
+## Ops — Rotate the app password (quarterly, or after compromise)
 
-For the first ~50 sends after DNS verification, Gmail may still route to
-Spam. This is standard mailbox-provider throttling for new senders and
-sorts itself out within a week.
-
-Actions during the first week:
-1. Ask your first few testers to explicitly mark the email as "Not spam"
-   if they find it there.
-2. Do not send bulk marketing content from this domain — you'll poison
-   the reputation you're trying to build.
-3. If you're seeing >5% spam classification in Resend's dashboard after
-   a week, buy a paid Resend plan for the dedicated IP feature, and add
-   a stricter DMARC policy (`p=quarantine` → `p=reject`) once you're
-   confident.
+1. Revoke the current app password at
+   https://myaccount.google.com/apppasswords → find "TrustPe backend"
+   → **Delete**.
+2. Create a new one, same name.
+3. Update `SMTP_PASS` in Render → save.
+4. Update `SMTP_PASS` in local `backend/.env`.
 
 ---
 
-## Phase G — Ops runbook
+## Upgrade path — when to move off Gmail SMTP
 
-**Rotate the Resend API key** (quarterly, or immediately if you suspect
-compromise):
-1. Resend → **API Keys → Create** a new one → name it
-   `trustpe-production-2`.
-2. Render → update `RESEND_API_KEY` to the new value → save (service
-   restarts).
-3. Verify with `curl /health/ready` — `email.live: true`.
-4. Resend → delete the old key.
+- **You're sending >100 emails/day.** Google throttles hard past ~100
+  for unknown app-password senders.
+- **You're going public** on Play Store's Production track with a
+  `trustpe.in` domain — no-reply@trustpe.in looks more professional
+  than a personal Gmail.
 
-**Test outbound mail from CI** (nice-to-have — not required for launch):
-Add a script that sends a "test" email to `deliverability-test@yourdomain`
-and asserts the response ID is present. Wire it as a manual GitHub Actions
-job so a human runs it — automating this consumes your daily quota.
-
-**When you outgrow Resend free tier:**
-- 3,000/month cap → upgrade to Pro ($20/month, 50k sends). If you're
-  hitting this on the pilot, something is misconfigured.
-- Alternative providers with the same adapter surface: SendGrid (bigger
-  but heavier setup), Postmark (fastest transactional deliverability but
-  strictest content policies).
+When either of those happens, add the `resend` package back and set
+`RESEND_API_KEY`. The email service is designed for the swap — see the
+git history for the Sprint 5F Resend integration.
 
 ---
 
-## Failure mode reference
+## Failure-mode reference
 
-| Symptom | Root cause | Fix |
+| Symptom | Cause | Fix |
 |---|---|---|
-| Signup succeeds but no email arrives | RESEND_API_KEY not set | Set it in Render env vars |
-| Signup returns "email failed" 500 | 4xx from Resend (invalid from) | Verify DNS in Phase B |
-| Email arrives from `onboarding@resend.dev` | Rushed alternative left in EMAIL_FROM | Change to `no-reply@trustpe.in` once DNS verified |
-| Email in Spam folder every time | New-sender reputation | Phase F warmup + wait a week |
-| `[email] failed after retry` in logs | Persistent Resend outage | Check `status.resend.com`; open incident. OTPs will queue in stub mode if you set RESEND_API_KEY blank temporarily |
-| Rate limit 429 on `/auth/signup` | User hit the 5/email/15-min cap | Working as designed; user waits 15 min |
-| `_dmarc` record not verifying | Long value got wrapped in your DNS host's UI | Some UIs need quotes around the whole value; consult your DNS host's docs |
-
----
-
-## Quick reference
-
-- Resend dashboard: https://resend.com
-- Resend status: https://status.resend.com
-- API key format: `re_...`
-- Env vars: `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`
-- Readiness probe: `GET /health/ready`
+| Signup returns 502 `otp_delivery_failed` | Backend can't reach Gmail SMTP | Check backend logs for the actual Nodemailer error |
+| `Invalid login: 535-5.7.8 Username and Password not accepted` | Wrong password — used the account password, not an app password | Generate an app password at myaccount.google.com/apppasswords |
+| `EAUTH` in backend logs | 2FA not enabled on the Google account | Enable 2FA, then generate app password |
+| Emails land in Promotions / Updates tab | Gmail categorises unknown senders | Ask testers to move the first one to Primary — it sticks |
+| `[email:stub] Would send` in logs even though SMTP_* is set | Env not picked up | Restart backend / redeploy on Render |
+| Signup succeeds but no email arrives | `SMTP_PASS` blank in Render env | Set it in dashboard → save |
+| No email + no logs | Recipient's Gmail rejected it silently | Rare — check your Gmail's Sent folder to see if it was actually delivered |

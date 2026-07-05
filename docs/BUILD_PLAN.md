@@ -7,6 +7,42 @@
 
 ---
 
+## 0. Parked capabilities (removed from active deps, wire back when needed)
+
+The following features were prototyped and then removed from the active
+dependency graph to keep the pilot lean. When any of these become
+priority again, the wiring points are clearly marked as `TODO(...)`
+comments in the code — bringing them back is a 10-min job of installing
+the package + slotting the call into the marked place.
+
+- **`@sentry/node` and `@sentry/nextjs`** — see `backend/src/utils/tracker.ts`
+  and `admin/src/lib/tracker.ts` (`TODO(sentry):` comments). Both tracker
+  modules stay Sentry-shaped, so re-adding is: `bun add @sentry/node`
+  (backend) or `bun add @sentry/nextjs` (admin), replace the two TODO
+  bodies with `Sentry.init(...)` / `Sentry.captureException(...)`, set
+  the `SENTRY_DSN` env var.
+- **Resend as an email transport** — parked. Current transport is
+  Nodemailer + Gmail SMTP (`backend/src/services/email.service.ts`)
+  which is zero-cost and needs no domain verification. When we outgrow
+  Gmail's ~500/day cap or want a `no-reply@trustpe.in` sender, install
+  `resend` and add a Resend branch above the SMTP branch — the pattern
+  is preserved in git history (Sprint 5F). Set `RESEND_API_KEY` +
+  ensure the sending domain is verified in Resend's dashboard.
+- **`ioredis`** — parked. Redis-backed OTP + rate-limit stores were
+  scoped for Sprint 3+; the in-memory implementations in
+  `otp-store.service.ts` and `middleware/rate-limit.ts` are the current
+  transport. Re-add when we outgrow single-process.
+- **`bcrypt`** — parked. Never wired. When admin password auth arrives
+  (currently email OTP everywhere) this will come back.
+- **`backend/Dockerfile` + `.dockerignore`** — removed. Render Blueprint
+  uses the native Node runtime and doesn't need Docker. Re-add if we
+  ever migrate to Fly / Railway / an EC2 self-host.
+- **`docs/EMAIL_PROVIDER_OPTIONS.md`** — deleted. Setup for Gmail SMTP
+  is preserved in `PRODUCTION_EMAIL_SETUP.md` and the parked-capability
+  note above.
+
+---
+
 ## 1. Cadence and assumptions
 
 - **Sprint length:** 2 weeks
