@@ -7,8 +7,12 @@ import { env } from '../config/env.js';
  * Health controller — liveness + readiness.
  *
  *   GET /health          — liveness ping. Always 200 if the process is up.
- *   GET /health/ready    — readiness probe. 200 only when DB is connected
- *                          AND critical env is set. 503 otherwise.
+ *   GET /health/ready    — readiness probe. 200 when the database is
+ *                          connected. Other dependencies (email, JWT,
+ *                          Cloudinary) are surfaced for ops visibility
+ *                          but do NOT fail readiness — the app can still
+ *                          accept traffic without them (OTPs stub to
+ *                          logs, KYC uploads fall back gracefully).
  *
  * Used by Render's built-in health checker and by hand-run diagnostics.
  */
@@ -26,28 +30,29 @@ export const healthController = {
   ready(_req: Request, res: Response): void {
     const dbConnected = mongoose.connection.readyState === 1;
     const email = emailService.status();
-    const jwtConfigured = env.JWT_ACCESS_SECRET.length >= 32 && env.JWT_REFRESH_SECRET.length >= 32;
+    const jwtConfigured =
+      env.JWT_ACCESS_SECRET.length >= 32 && env.JWT_REFRESH_SECRET.length >= 32;
     const cloudinaryConfigured =
       !!env.CLOUDINARY_CLOUD_NAME && !!env.CLOUDINARY_API_KEY && !!env.CLOUDINARY_API_SECRET;
 
-    // Deliberately verbose so operators can see what's missing at a glance.
-    // Response body stays JSON in either case so the checker parses uniformly.
+    // Database is the only hard requirement for readiness. Everything else
+    // is a warning surfaced in the body so ops can see what's missing at
+    // a glance, but doesn't take the service offline.
+    const ready = dbConnected;
+
     const dependencies = {
       database: {
         ok: dbConnected,
         state: readyStateName(mongoose.connection.readyState),
       },
       email: {
-        // Stubbed mail is fine in development — only "not-live" fails
-        // readiness when NODE_ENV is production.
-        ok: env.NODE_ENV !== 'production' || email.live,
+        ok: email.live,
         live: email.live,
         from: email.from,
       },
       jwt: { ok: jwtConfigured },
       cloudinary: { ok: cloudinaryConfigured },
     };
-    const ready = Object.values(dependencies).every((d) => d.ok);
 
     res.status(ready ? 200 : 503).json({
       ok: ready,
