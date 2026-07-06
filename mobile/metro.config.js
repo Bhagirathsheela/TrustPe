@@ -10,10 +10,13 @@
 //    file tree. Without this, the same package (e.g. react) can be found
 //    twice through different paths, producing the dreaded
 //    "Invalid hook call ... more than one copy of React" runtime error.
-// 4. unstable_conditionNames adds `react-native` so Metro picks the
-//    react-native branch of package.json `exports` — used by shared/ to
-//    point mobile at raw `.ts` source (while backend picks compiled
-//    `.js` from dist/).
+// 4. unstable_enablePackageExports + unstable_conditionNames make Metro
+//    respect the `react-native` condition in shared/package.json so it
+//    picks the raw `.ts` source (while backend picks compiled `.js`).
+// 5. resolveRequest rewrites relative `.js` imports to `.ts` — required
+//    because shared/ source uses TypeScript's "NodeNext convention"
+//    (source is `foo.ts`, imports say `./foo.js`, which compiles cleanly
+//    but Metro's default resolver only looks for the literal `.js`).
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
@@ -33,5 +36,21 @@ config.resolver.disableHierarchicalLookup = true;
 
 config.resolver.unstable_enablePackageExports = true;
 config.resolver.unstable_conditionNames = ['react-native', 'require', 'default'];
+
+// Rewrite relative `.js` → `.ts` for TypeScript sources (Node's NodeNext
+// convention). Only applies to relative imports; package imports are
+// untouched.
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith('.') && moduleName.endsWith('.js')) {
+    const tsName = moduleName.slice(0, -3) + '.ts';
+    try {
+      return context.resolveRequest(context, tsName, platform);
+    } catch {
+      // Fall through to try the literal .js — genuine compiled JS may
+      // exist somewhere (e.g. inside node_modules dependencies).
+    }
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
 
 module.exports = config;

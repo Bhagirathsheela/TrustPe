@@ -18,10 +18,11 @@ coverage/
 *.lcov
 
 # Environment
-#.env
+# .env IS tracked deliberately — this repo is private and a solo pilot.
+# `.env.local` (Next.js convention for local-only overrides) stays
+# ignored so a personal machine's overrides don't fight the committed .env.
 .env.local
 .env.*.local
-!.env.example
 
 # Logs
 logs/
